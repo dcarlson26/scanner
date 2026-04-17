@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Card Scanner</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://docs.opencv.org/4.x/opencv.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+
+  <style>
+    body { margin:0; background:black; color:white; text-align:center; font-family:sans-serif; }
+    video, canvas { width:100%; }
+    #overlay {
+      position:absolute;
+      top:20%; left:10%;
+      width:80%; height:60%;
+      border:3px solid red;
+      border-radius:12px;
+      pointer-events:none;
+    }
+    #status { position:absolute; top:10px; width:100%; }
+    #captureBtn {
+      position:fixed; bottom:20px; left:50%;
+      transform:translateX(-50%);
+      padding:15px 25px;
+      background:yellow; border:none; border-radius:10px;
+    }
+    #history { text-align:left; padding:10px; }
+  </style>
+</head>
+
+<body>
+
+<div id="status">Initializing...</div>
+<video id="video" autoplay playsinline></video>
+<div id="overlay"></div>
+<button id="captureBtn">Capture</button>
+
+<p id="result"></p>
+<canvas id="canvas"></canvas>
+
+<h3>History</h3>
+<div id="history"></div>
+
+<script>
+let cvReady = false;
+cv['onRuntimeInitialized'] = () => { cvReady = true; };
+
+const video = document.getElementById('video');
+const overlay = document.getElementById('overlay');
+const statusText = document.getElementById('status');
+
+navigator.mediaDevices.getUserMedia({ video:{ facingMode:"environment" }})
+.then(stream => { video.srcObject = stream; });
+
+/* ---------- HISTORY ---------- */
+function saveHistory(entry){
+  let data = JSON.parse(localStorage.getItem("cardHistory") || "[]");
+  data.unshift(entry);
+  data = data.slice(0,10); // keep last 10
+  localStorage.setItem("cardHistory", JSON.stringify(data));
+  renderHistory();
+}
+
+function renderHistory(){
+  let data = JSON.parse(localStorage.getItem("cardHistory") || "[]");
+  let html = "";
+  data.forEach(e=>{
+    html += `<div>
+      <b>${e.name || "Unknown"}</b><br>
+      L/R: ${e.lr} | T/B: ${e.tb}<br>
+      <small>${e.date}</small>
+      <hr>
+    </div>`;
+  });
+  document.getElementById("history").innerHTML = html;
+}
+
+renderHistory();
+
+/* ---------- LIVE DETECTION ---------- */
+setInterval(() => {
+  if (!cvReady || video.videoWidth === 0) return;
+
+  let tmp = document.createElement('canvas');
+  tmp.width = video.videoWidth;
+  tmp.height = video.videoHeight;
+  let ctx = tmp.getContext('2d');
+  ctx.drawImage(video,0,0);
+
+  let src = cv.imread(tmp);
+  let gray = new cv.Mat();
+  let edges = new cv.Mat();
+
+  cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+  cv.GaussianBlur(gray, gray, new cv.Size(5,5),0);
+  cv.Canny(gray, edges, 50,150);
+
+  let contours = new cv.MatVector();
+  let hierarchy = new cv.Mat();
+  cv.findContours(edges, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+  let found = false;
+
+  for (let i=0;i<contours.size();i++){
+    let cnt = contours.get(i);
+    let peri = cv.arcLength(cnt,true);
+    let approx = new cv.Mat();
+    cv.approxPolyDP(cnt, approx, 0.02*peri, true);
+    if (approx.rows === 4) found = true;
+  }
+
+  if (found){
+    overlay.style.borderColor="lime";
+    statusText.innerText="Aligned ✔";
+  } else {
+    overlay.style.borderColor="red";
+    statusText.innerText="Find card...";
+  }
+
+  src.delete(); gray.delete(); edges.delete();
+  contours.delete(); hierarchy.delete();
+}, 300);
+
+/* ---------- CAPTURE ---------- */
+document.getElementById('captureBtn').onclick = () => {
+  if (!cvReady) return;
+
+  let canvasTmp = document.createElement('canvas');
+  canvasTmp.width = video.videoWidth;
+  canvasTmp.height = video.videoHeight;
+  let ctx = canvasTmp.getContext('2d');
+  ctx.drawImage(video,0,0);
+
+  processImage(canvasTmp);
+};
+
+async function processImage(canvasEl) {
+  let src = cv.imread(canvasEl);
+  let gray = new cv.Mat();
+  let edges = new cv.Mat();
+
+  cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+  cv.GaussianBlur(gray, gray, new cv.Size(5,5),0);
+  cv.Canny(gray, edges, 50,150);
+
+  let contours = new cv.MatVector();
+  let hierarchy = new cv.Mat();
+  cv.findContours(edges, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+  let best=null, maxArea=0;
+
+  for (let i=0;i<contours.size();i++){
+    let cnt = contours.get(i);
+    let area = cv.contourArea(cnt);
+
+    let peri = cv.arcLength(cnt,true);
+    let approx = new cv.Mat();
+    cv.approxPolyDP(cnt, approx, 0.02*peri, true);
+
+    if (approx.rows === 4 && area > maxArea){
+      maxArea = area;
+      best = approx;
+    }
+  }
+
+  if (!best) return;
+
+  let pts=[];
+  for(let i=0;i<4;i++){
+    pts.push({x:best.intPtr(i,0)[0], y:best.intPtr(i,0)[1]});
+  }
+
+  pts.sort((a,b)=>a.y-b.y);
+  let top = pts.slice(0,2).sort((a,b)=>a.x-b.x);
+  let bottomRow  = pts.slice(2,4).sort((a,b)=>a.x-b.x);
+  let ordered = [top[0], top[1], bottomRow [1], bottomRow [0]];
+
+  let srcTri = cv.matFromArray(4,1,cv.CV_32FC2,[
+    ordered[0].x,ordered[0].y,
+    ordered[1].x,ordered[1].y,
+    ordered[2].x,ordered[2].y,
+    ordered[3].x,ordered[3].y
+  ]);
+
+  let w=400,h=600;
+  let dstTri = cv.matFromArray(4,1,cv.CV_32FC2,[0,0,w,0,w,h,0,h]);
+
+  let M = cv.getPerspectiveTransform(srcTri,dstTri);
+  let warped = new cv.Mat();
+  cv.warpPerspective(src, warped, M, new cv.Size(w,h));
+
+  /* ---------- OCR (TOP AREA) ---------- */
+  let ocrCanvas = document.createElement('canvas');
+  cv.imshow(ocrCanvas, warped);
+
+  let resultOCR = await Tesseract.recognize(
+    ocrCanvas,
+    'eng',
+    { tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz -' }
+  );
+
+  let name = resultOCR.data.text.split("\n")[0].trim();
+
+  /* ---------- CENTERING ---------- */
+  let inner = {x:40, y:60, width:320, height:480}; // fallback estimate
+
+  let left = inner.x;
+  let right = w - (inner.x + inner.width);
+  let topDist = inner.y;
+  let bottomMargin  = h - (inner.y + inner.height);
+
+  let lPct = ((left/(left+right))*100).toFixed(1);
+  let rPct = ((right/(left+right))*100).toFixed(1);
+  let tPct = ((topDist/(topDist+bottomMargin ))*100).toFixed(1);
+  let bPct = ((bottomMargin /(topDist+bottomMargin ))*100).toFixed(1);
+
+  document.getElementById('result').innerText =
+    `${name || "Unknown"}\nL/R: ${lPct}/${rPct} | T/B: ${tPct}/${bPct}`;
+
+  saveHistory({
+    name: name,
+    lr: `${lPct}/${rPct}`,
+    tb: `${tPct}/${bPct}`,
+    date: new Date().toLocaleString()
+  });
+
+  cv.imshow('canvas', warped);
+
+  src.delete(); gray.delete(); edges.delete();
+}
+</script>
+
+</body>
+</html>
