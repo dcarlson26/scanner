@@ -4,6 +4,7 @@
   <title>Card Scanner</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="lib/opencv.js"></script>
+
   <style>
     body { margin:0; background:black; color:white; text-align:center; font-family:sans-serif; }
     video, canvas { width:100%; }
@@ -51,17 +52,13 @@ navigator.mediaDevices.getUserMedia({ video:{ facingMode:"environment" }})
 .then(stream => { video.srcObject = stream; });
 
 /* ---------- HISTORY ---------- */
-saveHistory({
-    lr: `${lPct}% / ${rPct}%`,
-    tb: `${tPct}% / ${bPct}%`,
-    confidence: confidence,
-    image: thumbnail,
-    leftMargin: left,
-    rightMargin: right,
-    topMargin: topDist,
-    bottomMargin: bottomMargin,
-    date: new Date().toLocaleString()
-});
+function saveHistory(entry){
+  let data = JSON.parse(localStorage.getItem("cardHistory") || "[]");
+  data.unshift(entry);
+  data = data.slice(0,10); // keep last 10
+  localStorage.setItem("cardHistory", JSON.stringify(data));
+  renderHistory();
+}
 
 function renderHistory(){
   let data = JSON.parse(localStorage.getItem("cardHistory") || "[]");
@@ -209,10 +206,15 @@ document.getElementById('result').innerText =
 Top / Bottom: ${tPct}% / ${bPct}%`;
 
   saveHistory({
-    name: name,
-    lr: `${lPct}/${rPct}`,
-    tb: `${tPct}/${bPct}`,
-    date: new Date().toLocaleString()
+      lr: `${lPct}% / ${rPct}%`,
+      tb: `${tPct}% / ${bPct}%`,
+      confidence: confidence,
+      image: thumbnail,
+      leftMargin: left,
+      rightMargin: right,
+      topMargin: topDist,
+      bottomMargin: bottomMargin,
+      date: new Date().toLocaleString()
   });
 
   cv.imshow('canvas', warped);
