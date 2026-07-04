@@ -7,13 +7,30 @@
 
   <style>
     body { margin:0; background:black; color:white; text-align:center; font-family:sans-serif; }
-    video, canvas { width:100%; }
-    #overlay {
-      position:absolute;
-      border:3px solid red;
-      border-radius:12px;
-      pointer-events:none;
-    }
+#video{
+
+display:block;
+
+width:100%;
+
+height:auto;
+}
+
+#overlay{
+
+position:absolute;
+
+border:3px solid red;
+
+box-sizing:border-box;
+
+z-index:2;
+}
+
+#captureBtn{
+
+z-index:3;
+}
     #status { position:absolute; top:10px; width:100%; }
     #cameraContainer {
 
@@ -46,7 +63,9 @@
 </head>
 
 <body>
-
+<div id="status">
+Initializing...
+</div>
 <div id="cameraContainer">
 
     <video id="video"></video>
@@ -98,35 +117,62 @@ if (!navigator.mediaDevices ||
         "Camera API not supported.";
     return;
 }
-try {
-    const stream = await navigator.mediaDevices.getUserMedia(constraints);
-    video.srcObject = stream;
-} catch (err) {
-    statusText.innerText =
-        "Unable to access camera.\nTry Safari or enable camera permissions.";
-    console.error(err);
+async function initCamera() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = stream;
+
+        video.onloadedmetadata = () => {
+            video.play();
+            updateOverlay();
+        };
+    } catch (err) {
+        console.error(err);
+    }
 }
+
+initCamera();
+
 const videoWidth = video.clientWidth;
 const videoHeight = video.clientHeight;
 
-const guideHeight = videoHeight * 0.70;
+const padding = 20;
+
+const guideHeight =
+videoHeight - padding*2;
 
 const guideWidth =
-    guideHeight * 63 / 88;
+guideHeight * 63 / 88;
 
-overlay.style.width =
-    guideWidth + "px";
+if (guideWidth > videoWidth-40){
 
-overlay.style.height =
-    guideHeight + "px";
+    guideWidth = videoWidth-40;
 
-overlay.style.left =
-    ((videoWidth - guideWidth)/2)
-    + "px";
+    guideHeight =
+guideWidth * 88 / 63;
+}
 
-overlay.style.top =
-    ((videoHeight - guideHeight)/2)
-    + "px";
+function updateOverlay() {
+
+    const videoWidth = video.clientWidth;
+    const videoHeight = video.clientHeight;
+
+    const guideHeight = videoHeight * 0.70;
+    const guideWidth = guideHeight * 63 / 88;
+
+    overlay.style.width = guideWidth + "px";
+    overlay.style.height = guideHeight + "px";
+
+    overlay.style.left =
+        ((videoWidth-guideWidth)/2)+"px";
+
+    overlay.style.top =
+        ((videoHeight-guideHeight)/2)+"px";
+}
+
+video.onloadedmetadata = () => {
+    updateOverlay();
+};
 /* ---------- HISTORY ---------- */
 function saveHistory(entry){
   let data = JSON.parse(localStorage.getItem("cardHistory") || "[]");
@@ -182,6 +228,7 @@ setInterval(() => {
     let approx = new cv.Mat();
     cv.approxPolyDP(cnt, approx, 0.02*peri, true);
     if (approx.rows === 4) found = true;
+    approx.delete();
   }
 
   if (found){
@@ -277,23 +324,21 @@ async function processImage(canvasEl) {
   let tPct = ((topDist/(topDist+bottomMargin ))*100).toFixed(1);
   let bPct = ((bottomMargin /(topDist+bottomMargin ))*100).toFixed(1);
 
-document.getElementById('result').innerText =
-    `Left / Right: ${lPct}% / ${rPct}%
-Top / Bottom: ${tPct}% / ${bPct}%`;
+document.getElementById("lrResult").innerText =
+`Left / Right: ${lPct}% / ${rPct}%`;
+
+document.getElementById("tbResult").innerText =
+`Top / Bottom: ${tPct}% / ${bPct}%`;
 
   saveHistory({
       lr: `${lPct}% / ${rPct}%`,
       tb: `${tPct}% / ${bPct}%`,
-      confidence: confidence,
-      image: thumbnail,
       leftMargin: left,
       rightMargin: right,
       topMargin: topDist,
       bottomMargin: bottomMargin,
       date: new Date().toLocaleString()
   });
-
-  cv.imshow('canvas', warped);
 
   src.delete(); gray.delete(); edges.delete();
 }
