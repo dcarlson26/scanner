@@ -3,8 +3,7 @@
 <head>
   <title>Card Scanner</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script src="https://docs.opencv.org/4.x/opencv.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+  <script src="lib/opencv.js"></script>
 
   <style>
     body { margin:0; background:black; color:white; text-align:center; font-family:sans-serif; }
@@ -53,21 +52,25 @@ navigator.mediaDevices.getUserMedia({ video:{ facingMode:"environment" }})
 .then(stream => { video.srcObject = stream; });
 
 /* ---------- HISTORY ---------- */
-function saveHistory(entry){
-  let data = JSON.parse(localStorage.getItem("cardHistory") || "[]");
-  data.unshift(entry);
-  data = data.slice(0,10); // keep last 10
-  localStorage.setItem("cardHistory", JSON.stringify(data));
-  renderHistory();
-}
+saveHistory({
+    lr: `${lPct}% / ${rPct}%`,
+    tb: `${tPct}% / ${bPct}%`,
+    confidence: confidence,
+    image: thumbnail,
+    leftMargin: left,
+    rightMargin: right,
+    topMargin: topDist,
+    bottomMargin: bottomMargin,
+    date: new Date().toLocaleString()
+});
 
 function renderHistory(){
   let data = JSON.parse(localStorage.getItem("cardHistory") || "[]");
   let html = "";
   data.forEach(e=>{
     html += `<div>
-      <b>${e.name || "Unknown"}</b><br>
-      L/R: ${e.lr} | T/B: ${e.tb}<br>
+      L/R: ${e.lr}<br>
+      T/B: ${e.tb}<br>
       <small>${e.date}</small>
       <hr>
     </div>`;
@@ -189,18 +192,6 @@ async function processImage(canvasEl) {
   let warped = new cv.Mat();
   cv.warpPerspective(src, warped, M, new cv.Size(w,h));
 
-  /* ---------- OCR (TOP AREA) ---------- */
-  let ocrCanvas = document.createElement('canvas');
-  cv.imshow(ocrCanvas, warped);
-
-  let resultOCR = await Tesseract.recognize(
-    ocrCanvas,
-    'eng',
-    { tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz -' }
-  );
-
-  let name = resultOCR.data.text.split("\n")[0].trim();
-
   /* ---------- CENTERING ---------- */
   let inner = {x:40, y:60, width:320, height:480}; // fallback estimate
 
@@ -214,8 +205,9 @@ async function processImage(canvasEl) {
   let tPct = ((topDist/(topDist+bottomMargin ))*100).toFixed(1);
   let bPct = ((bottomMargin /(topDist+bottomMargin ))*100).toFixed(1);
 
-  document.getElementById('result').innerText =
-    `${name || "Unknown"}\nL/R: ${lPct}/${rPct} | T/B: ${tPct}/${bPct}`;
+document.getElementById('result').innerText =
+    `Left / Right: ${lPct}% / ${rPct}%
+Top / Bottom: ${tPct}% / ${bPct}%`;
 
   saveHistory({
     name: name,
