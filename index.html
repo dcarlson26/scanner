@@ -7,58 +7,49 @@
 
   <style>
     body { margin:0; background:black; color:white; text-align:center; font-family:sans-serif; }
-#video{
 
-display:block;
-
-width:100%;
-
-height:auto;
+#video {
+    display: block;
+    width: 100%;
+    height: auto;
 }
 
 #overlay{
-
 position:absolute;
-
 border:3px solid red;
-
+pointer-events: none;
 box-sizing:border-box;
-
-z-index:2;
 }
 
 #captureBtn{
-
-z-index:3;
-}
-    #status { position:absolute; top:10px; width:100%; }
-    #cameraContainer {
-
-    position: relative;
-
-    width: 100%;
-
-    max-width: 500px;
-
-    margin: auto;
-    }
-    #captureBtn {
-
     position: absolute;
-
     bottom: 15px;
-
     left: 50%;
-
     transform: translateX(-50%);
-    }
-    #results {
+}
 
+#status { 
+  position:absolute; 
+  top:10px; 
+  width:100%; 
+}
+
+#cameraContainer {
+  position: relative;
+  width: 100%;
+  max-width: 500px;
+  margin: auto;
+}
+
+#results {
     margin-top: 15px;
-
     font-size: 20px;
-    }
-    #history { text-align:left; padding:10px; }
+}
+
+#history { 
+  text-align:left; 
+  padding:10px; 
+}
   </style>
 </head>
 
@@ -110,23 +101,61 @@ const constraints = {
         }
     }
 };
-if (!navigator.mediaDevices ||
-    !navigator.mediaDevices.getUserMedia) {
+async function init() {
 
-    statusText.innerText =
-        "Camera API not supported.";
-    return;
-}
-async function initCamera() {
+    if (!navigator.mediaDevices ||
+        !navigator.mediaDevices.getUserMedia) {
+
+        statusText.innerText = "Camera API not supported.";
+        return;
+    }
+
     try {
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        const stream =
+            await navigator.mediaDevices.getUserMedia(constraints);
+
         video.srcObject = stream;
 
         video.onloadedmetadata = () => {
             video.play();
             updateOverlay();
         };
+
     } catch (err) {
+        console.error(err);
+        statusText.innerText = err.message;
+    }
+}
+
+init();
+
+async function initCamera() {
+
+    if (!navigator.mediaDevices ||
+        !navigator.mediaDevices.getUserMedia) {
+
+        alert("Camera API not supported.");
+        return;
+    }
+
+    try {
+
+        const stream =
+            await navigator.mediaDevices.getUserMedia(constraints);
+
+        video.srcObject = stream;
+
+        video.onloadedmetadata = () => {
+
+            video.play();
+
+            updateOverlay();
+        };
+
+    } catch (err) {
+
+        alert(err.name + "\n" + err.message);
+
         console.error(err);
     }
 }
@@ -154,20 +183,33 @@ guideWidth * 88 / 63;
 
 function updateOverlay() {
 
-    const videoWidth = video.clientWidth;
-    const videoHeight = video.clientHeight;
+    const rect = video.getBoundingClientRect();
 
-    const guideHeight = videoHeight * 0.70;
-    const guideWidth = guideHeight * 63 / 88;
+    const margin = 20;
+
+    let guideWidth =
+        rect.width - margin * 2;
+
+    let guideHeight =
+        guideWidth * 88 / 63;
+
+    if (guideHeight > rect.height - margin * 2) {
+
+        guideHeight =
+            rect.height - margin * 2;
+
+        guideWidth =
+            guideHeight * 63 / 88;
+    }
 
     overlay.style.width = guideWidth + "px";
     overlay.style.height = guideHeight + "px";
 
     overlay.style.left =
-        ((videoWidth-guideWidth)/2)+"px";
+        ((rect.width - guideWidth) / 2) + "px";
 
     overlay.style.top =
-        ((videoHeight-guideHeight)/2)+"px";
+        ((rect.height - guideHeight) / 2) + "px";
 }
 
 video.onloadedmetadata = () => {
