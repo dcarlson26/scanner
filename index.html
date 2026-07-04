@@ -107,13 +107,7 @@ async function init() {
         const stream =
             await navigator.mediaDevices.getUserMedia(constraints);
 
-        video.srcObject = stream;
-
-        video.onloadedmetadata = () => {
-            video.play();
-            updateOverlay();
-        };
-
+    video.srcObject = stream;
     } catch (err) {
         console.error(err);
         statusText.innerText = err.message;
@@ -121,58 +115,6 @@ async function init() {
 }
 
 init();
-
-async function initCamera() {
-
-    if (!navigator.mediaDevices ||
-        !navigator.mediaDevices.getUserMedia) {
-
-        alert("Camera API not supported.");
-        return;
-    }
-
-    try {
-
-        const stream =
-            await navigator.mediaDevices.getUserMedia(constraints);
-
-        video.srcObject = stream;
-
-        video.onloadedmetadata = () => {
-
-            video.play();
-
-            updateOverlay();
-        };
-
-    } catch (err) {
-
-        alert(err.name + "\n" + err.message);
-
-        console.error(err);
-    }
-}
-
-initCamera();
-
-const videoWidth = video.clientWidth;
-const videoHeight = video.clientHeight;
-
-const padding = 20;
-
-const guideHeight =
-videoHeight - padding*2;
-
-const guideWidth =
-guideHeight * 63 / 88;
-
-if (guideWidth > videoWidth-40){
-
-    guideWidth = videoWidth-40;
-
-    guideHeight =
-guideWidth * 88 / 63;
-}
 
 function updateOverlay() {
 
@@ -205,9 +147,22 @@ function updateOverlay() {
         ((rect.height - guideHeight) / 2) + "px";
 }
 
-video.onloadedmetadata = () => {
-    updateOverlay();
+video.onloadedmetadata = async () => {
+
+    await video.play();
+
+    requestAnimationFrame(() => {
+
+        updateOverlay();
+
+    });
+
 };
+window.addEventListener("resize", updateOverlay);
+
+window.addEventListener("orientationchange", () => {
+    setTimeout(updateOverlay, 200);
+});
 /* ---------- HISTORY ---------- */
 function saveHistory(entry){
   let data = JSON.parse(localStorage.getItem("cardHistory") || "[]");
@@ -318,6 +273,7 @@ async function processImage(canvasEl) {
       maxArea = area;
       best = approx;
     }
+    approx.delete();
   }
 
   if (!best) return;
