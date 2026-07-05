@@ -29,13 +29,32 @@ box-sizing:border-box;
 }
 
 #captureBtn{
-    position: absolute;
 
-    bottom: 15px;
+    position:absolute;
 
-    left: 50%;
+    bottom:20px;
 
-    transform: translateX(-50%);
+    left:50%;
+
+    transform:translateX(-50%);
+
+    font-size:28px;
+
+    padding:18px 40px;
+
+    border-radius:18px;
+
+    border:none;
+
+    background:#1976d2;
+
+    color:white;
+
+    font-weight:bold;
+
+    cursor:pointer;
+
+    z-index:10;
 }
 
 #status { 
@@ -285,19 +304,44 @@ setInterval(() => {
 }, 300);
 
 /* ---------- CAPTURE ---------- */
-document.getElementById('captureBtn').onclick = () => {
-  if (!cvReady) return;
+document.getElementById("captureBtn").onclick = async () => {
 
-  let canvasTmp = document.createElement('canvas');
-  canvasTmp.width = video.videoWidth;
-  canvasTmp.height = video.videoHeight;
-  let ctx = canvasTmp.getContext('2d');
-  ctx.drawImage(video,0,0);
+    if (!cvReady) {
+        alert("OpenCV is still loading.");
+        return;
+    }
 
-  processImage(canvasTmp);
+    if (video.videoWidth === 0) {
+        alert("Camera is not ready.");
+        return;
+    }
+
+    try {
+
+        let canvasTmp = document.createElement("canvas");
+
+        canvasTmp.width = video.videoWidth;
+        canvasTmp.height = video.videoHeight;
+
+        let ctx = canvasTmp.getContext("2d");
+
+        ctx.drawImage(video, 0, 0);
+
+        await processImage(canvasTmp);
+
+    }
+    catch (err) {
+
+        console.error(err);
+
+        alert(err);
+
+    }
+
 };
 
 async function processImage(canvasEl) {
+  console.log("Processing image...");
   let src = cv.imread(canvasEl);
   let gray = new cv.Mat();
   let edges = new cv.Mat();
@@ -352,6 +396,7 @@ async function processImage(canvasEl) {
   let M = cv.getPerspectiveTransform(srcTri,dstTri);
   let warped = new cv.Mat();
   cv.warpPerspective(src, warped, M, new cv.Size(w,h));
+  console.log("Warp successful");
   let grayWarp = new cv.Mat();
 
   cv.cvtColor(
@@ -394,6 +439,8 @@ async function processImage(canvasEl) {
       10
 
   );
+  console.log("Found", lines.rows, "lines");
+
   let verticalCount = 0;
 
   let horizontalCount = 0;
@@ -484,7 +531,7 @@ async function processImage(canvasEl) {
   src.delete(); 
 
   gray.delete(); 
-  
+
   edges.delete();
 }
 </script>
