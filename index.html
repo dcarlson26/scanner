@@ -287,6 +287,12 @@ setInterval(() => {
     let peri = cv.arcLength(cnt,true);
     let approx = new cv.Mat();
     cv.approxPolyDP(cnt, approx, 0.02*peri, true);
+    let rect = cv.boundingRect(approx);
+    let ratio = rect.width / rect.height;
+    if (ratio < 0.65 || ratio > 0.78)
+        continue;
+    if (area < src.cols * src.rows * 0.15)
+        continue;
     if (approx.rows === 4) found = true;
     approx.delete();
   }
@@ -393,10 +399,41 @@ async function processImage(canvasEl) {
     pts.push({x:best.intPtr(i,0)[0], y:best.intPtr(i,0)[1]});
   }
 
-  pts.sort((a,b)=>a.y-b.y);
-  let top = pts.slice(0,2).sort((a,b)=>a.x-b.x);
-  let bottomRow  = pts.slice(2,4).sort((a,b)=>a.x-b.x);
-  let ordered = [top[0], top[1], bottomRow [1], bottomRow [0]];
+    let tl, tr, br, bl;
+
+    let minSum = Infinity;
+    let maxSum = -Infinity;
+
+    let minDiff = Infinity;
+    let maxDiff = -Infinity;
+
+    for (const p of pts) {
+
+        const sum = p.x + p.y;
+        const diff = p.x - p.y;
+
+        if (sum < minSum) {
+            minSum = sum;
+            tl = p;
+        }
+
+        if (sum > maxSum) {
+            maxSum = sum;
+            br = p;
+        }
+
+        if (diff > maxDiff) {
+            maxDiff = diff;
+            tr = p;
+        }
+
+        if (diff < minDiff) {
+            minDiff = diff;
+            bl = p;
+        }
+    }
+
+  let ordered = [tl, tr, br, bl];
 
   let srcTri = cv.matFromArray(4,1,cv.CV_32FC2,[
     ordered[0].x,ordered[0].y,
@@ -512,10 +549,11 @@ async function processImage(canvasEl) {
     );
 
   }
-  cv.imshow(
+/*   cv.imshow(
     "debugCanvas",
     warped
-  );
+  ); */
+  cv.imshow("debugCanvas", edgeImage);
   document.getElementById("debugInfo").innerText =
 
   `Lines detected: ${lines.rows}
