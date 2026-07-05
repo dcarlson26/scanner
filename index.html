@@ -9,46 +9,89 @@
     body { margin:0; background:black; color:white; text-align:center; font-family:sans-serif; }
 
 #video {
+  
     display: block;
+
     width: 100%;
+
     height: auto;
 }
 
 #overlay{
+
 position:absolute;
+
 border:3px solid red;
+
 pointer-events: none;
+
 box-sizing:border-box;
 }
 
 #captureBtn{
     position: absolute;
+
     bottom: 15px;
+
     left: 50%;
+
     transform: translateX(-50%);
 }
 
 #status { 
+
   position:absolute; 
+
   top:10px; 
+
   width:100%; 
 }
 
 #cameraContainer {
+
   position: relative;
+
   width: 100%;
+
   max-width: 500px;
+
   margin: auto;
 }
 
 #results {
+
     margin-top: 15px;
+
     font-size: 20px;
 }
 
 #history { 
   text-align:left; 
+
   padding:10px; 
+}
+#debugCanvas{
+
+    width:100%;
+
+    max-width:400px;
+
+    border:2px solid white;
+
+    margin-top:20px;
+
+    background:black;
+}
+
+#debugInfo{
+
+    margin:15px;
+
+    font-family:monospace;
+
+    text-align:left;
+
+    white-space:pre-line;
 }
   </style>
 </head>
@@ -71,7 +114,15 @@ Initializing...
 </div>
 
 <div id="history"></div>
+<h3>Debug View</h3>
 
+<canvas
+    id="debugCanvas"
+    width="400"
+    height="600">
+</canvas>
+
+<div id="debugInfo"></div>
 <script>
 let cvReady = false;
 cv['onRuntimeInitialized'] = () => { cvReady = true; };
@@ -309,96 +360,54 @@ async function processImage(canvasEl) {
   ));
   
   /* ---------- CENTERING ---------- */
- let hsv = new cv.Mat();
+  let gray = new cv.Mat();
+  cv.cvtColor(warped, gray, cv.COLOR_RGBA2GRAY);
 
-  cv.cvtColor(
-      roi,
-      hsv,
-      cv.COLOR_RGBA2RGB
+  cv.GaussianBlur(
+      gray,
+      gray,
+      new cv.Size(5,5),
+      0
   );
 
-  cv.cvtColor(
-      hsv,
-      hsv,
-      cv.COLOR_RGB2HSV
+  let edges = new cv.Mat();
+
+  cv.Canny(
+      gray,
+      edges,
+      60,
+      120
   );
-    let leftStrip = hsv.roi(new cv.Rect(
-      10,
-      100,
-      10,
-      300
-  ));
-  
-  let avg = cv.mean(leftStrip);
-  const yellowBorder =
-    avg[1] > 70;
-  function findLeftBorder(mat,row) {
+  let lines = new cv.Mat();
 
-    let previous = null;
+  cv.HoughLinesP(
+      edges,
+      lines,
+      1,                  // pixel resolution
+      Math.PI/180,        // angle resolution
+      50,                 // votes
+      60,                 // minimum length
+      10                  // max gap
+  );
+  for (let i = 0; i < lines.rows; i++) {
 
-    for (let x = 20; x < 150; x++) {
+    let line = lines.data32S.subarray(i*4, i*4+4);
 
-        const pixel = mat.ucharPtr(row, x);
+    let x1 = line[0];
+    let y1 = line[1];
 
-        const brightness =
-            pixel[2];
+    let x2 = line[2];
+    let y2 = line[3];
 
-        if (previous !== null &&
-            Math.abs(brightness - previous) > 30) {
-
-            return x;
-        }
-
-        previous = brightness;
-    }
-
-    return null;
+    cv.line(
+        warped,
+        new cv.Point(x1,y1),
+        new cv.Point(x2,y2),
+        [255,0,0,255],
+        2
+    );
   }
-  function findRightBorder(mat,row) {
-
-    let previous = null;
-
-    for (let x = 130; x < 20; x--) {
-
-        const pixel = mat.ucharPtr(row, x);
-
-        const brightness =
-            pixel[2];
-
-        if (previous !== null &&
-            Math.abs(brightness - previous) > 30) {
-
-            return x;
-        }
-
-        previous = brightness;
-    }
-
-    return null;
-  }
-  function findToptBorder(mat,column) {
-
-    let previous = null;
-
-    for (let y = 130; y < 20; y--) {
-
-        const pixel = mat.ucharPtr(column, y);
-
-        const brightness =
-            pixel[2];
-
-        if (previous !== null &&
-            Math.abs(brightness - previous) > 30) {
-
-            return y;
-        }
-
-        previous = brightness;
-    }
-
-    return null;
-  }
-
+  cv.imshow("canvas", warped);
   let inner = {x:40, y:60, width:320, height:480}; // fallback estimate
 
   let left = inner.x;
