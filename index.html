@@ -301,8 +301,104 @@ async function processImage(canvasEl) {
   let M = cv.getPerspectiveTransform(srcTri,dstTri);
   let warped = new cv.Mat();
   cv.warpPerspective(src, warped, M, new cv.Size(w,h));
-
+  let roi = warped.roi(new cv.Rect(
+    15,
+    15,
+    370,
+    570
+  ));
+  
   /* ---------- CENTERING ---------- */
+ let hsv = new cv.Mat();
+
+  cv.cvtColor(
+      roi,
+      hsv,
+      cv.COLOR_RGBA2RGB
+  );
+
+  cv.cvtColor(
+      hsv,
+      hsv,
+      cv.COLOR_RGB2HSV
+  );
+    let leftStrip = hsv.roi(new cv.Rect(
+      10,
+      100,
+      10,
+      300
+  ));
+  
+  let avg = cv.mean(leftStrip);
+  const yellowBorder =
+    avg[1] > 70;
+  function findLeftBorder(mat,row) {
+
+    let previous = null;
+
+    for (let x = 20; x < 150; x++) {
+
+        const pixel = mat.ucharPtr(row, x);
+
+        const brightness =
+            pixel[2];
+
+        if (previous !== null &&
+            Math.abs(brightness - previous) > 30) {
+
+            return x;
+        }
+
+        previous = brightness;
+    }
+
+    return null;
+  }
+  function findRightBorder(mat,row) {
+
+    let previous = null;
+
+    for (let x = 130; x < 20; x--) {
+
+        const pixel = mat.ucharPtr(row, x);
+
+        const brightness =
+            pixel[2];
+
+        if (previous !== null &&
+            Math.abs(brightness - previous) > 30) {
+
+            return x;
+        }
+
+        previous = brightness;
+    }
+
+    return null;
+  }
+  function findToptBorder(mat,column) {
+
+    let previous = null;
+
+    for (let y = 130; y < 20; y--) {
+
+        const pixel = mat.ucharPtr(column, y);
+
+        const brightness =
+            pixel[2];
+
+        if (previous !== null &&
+            Math.abs(brightness - previous) > 30) {
+
+            return y;
+        }
+
+        previous = brightness;
+    }
+
+    return null;
+  }
+
   let inner = {x:40, y:60, width:320, height:480}; // fallback estimate
 
   let left = inner.x;
