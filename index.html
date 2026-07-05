@@ -356,19 +356,34 @@ async function processImage(canvasEl) {
 
   let best=null, maxArea=0;
 
-  for (let i=0;i<contours.size();i++){
-    let cnt = contours.get(i);
-    let area = cv.contourArea(cnt);
+  for (let i = 0; i < contours.size(); i++) {
 
-    let peri = cv.arcLength(cnt,true);
-    let approx = new cv.Mat();
-    cv.approxPolyDP(cnt, approx, 0.02*peri, true);
+      let cnt = contours.get(i);
 
-    if (approx.rows === 4 && area > maxArea){
-      maxArea = area;
-      best = approx;
-    }
-    approx.delete();
+      let area = cv.contourArea(cnt);
+
+      let peri = cv.arcLength(cnt, true);
+
+      let approx = new cv.Mat();
+
+      cv.approxPolyDP(cnt, approx, 0.02 * peri, true);
+
+      const isBest =
+          approx.rows === 4 &&
+          area > maxArea;
+
+      if (isBest) {
+
+          maxArea = area;
+
+          if (best) {
+              best.delete();
+          }
+
+          best = approx.clone();
+      }
+
+      approx.delete();
   }
 
   if (!best) return;
