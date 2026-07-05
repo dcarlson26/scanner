@@ -9,7 +9,7 @@
     body { margin:0; background:black; color:white; text-align:center; font-family:sans-serif; }
 
 #video {
-  
+
     display: block;
 
     width: 100%;
@@ -352,79 +352,117 @@ async function processImage(canvasEl) {
   let M = cv.getPerspectiveTransform(srcTri,dstTri);
   let warped = new cv.Mat();
   cv.warpPerspective(src, warped, M, new cv.Size(w,h));
-  let roi = warped.roi(new cv.Rect(
-    15,
-    15,
-    370,
-    570
-  ));
-  
-  /* ---------- CENTERING ---------- */
-  let gray = new cv.Mat();
-  cv.cvtColor(warped, gray, cv.COLOR_RGBA2GRAY);
+  let grayWarp = new cv.Mat();
+
+  cv.cvtColor(
+      warped,
+      grayWarp,
+      cv.COLOR_RGBA2GRAY
+  );
 
   cv.GaussianBlur(
-      gray,
-      gray,
+      grayWarp,
+      grayWarp,
       new cv.Size(5,5),
       0
   );
 
-  let edges = new cv.Mat();
+  let edgeImage = new cv.Mat();
 
   cv.Canny(
-      gray,
-      edges,
+      grayWarp,
+      edgeImage,
       60,
       120
   );
   let lines = new cv.Mat();
 
   cv.HoughLinesP(
-      edges,
+
+      edgeImage,
+
       lines,
-      1,                  // pixel resolution
-      Math.PI/180,        // angle resolution
-      50,                 // votes
-      60,                 // minimum length
-      10                  // max gap
+
+      1,
+
+      Math.PI/180,
+
+      50,
+
+      60,
+
+      10
+
   );
-  for (let i = 0; i < lines.rows; i++) {
+  let verticalCount = 0;
 
-    let line = lines.data32S.subarray(i*4, i*4+4);
+  let horizontalCount = 0;
+  
+  for (let i=0;i<lines.rows;i++) {
 
-    let x1 = line[0];
-    let y1 = line[1];
+    let line =
+        lines.data32S.subarray(i*4,i*4+4);
 
-    let x2 = line[2];
-    let y2 = line[3];
+    let x1=line[0];
+    let y1=line[1];
+
+    let x2=line[2];
+    let y2=line[3];
+
+    let dx=Math.abs(x2-x1);
+
+    let dy=Math.abs(y2-y1);
+
+    let color;
+
+    if (dy > dx*3){
+
+        verticalCount++;
+
+        color=[0,255,0,255];
+
+    }
+    else if(dx > dy*3){
+
+        horizontalCount++;
+
+        color=[255,0,0,255];
+
+    }
+    else{
+
+        color=[255,255,0,255];
+
+    }
 
     cv.line(
+
         warped,
+
         new cv.Point(x1,y1),
+
         new cv.Point(x2,y2),
-        [255,0,0,255],
+
+        color,
+
         2
+
     );
+
   }
-  cv.imshow("canvas", warped);
-  let inner = {x:40, y:60, width:320, height:480}; // fallback estimate
+  cv.imshow(
+    "debugCanvas",
+    warped
+  );
+  document.getElementById("debugInfo").innerText =
 
-  let left = inner.x;
-  let right = w - (inner.x + inner.width);
-  let topDist = inner.y;
-  let bottomMargin  = h - (inner.y + inner.height);
+  `Lines detected: ${lines.rows}
 
-  let lPct = ((left/(left+right))*100).toFixed(1);
-  let rPct = ((right/(left+right))*100).toFixed(1);
-  let tPct = ((topDist/(topDist+bottomMargin ))*100).toFixed(1);
-  let bPct = ((bottomMargin /(topDist+bottomMargin ))*100).toFixed(1);
+  Vertical: ${verticalCount}
 
-document.getElementById("lrResult").innerText =
-`Left / Right: ${lPct}% / ${rPct}%`;
-
-document.getElementById("tbResult").innerText =
-`Top / Bottom: ${tPct}% / ${bPct}%`;
+  Horizontal: ${horizontalCount}`;
+  /* ---------- CENTERING ---------- */
+  
 
   saveHistory({
       lr: `${lPct}% / ${rPct}%`,
@@ -435,8 +473,19 @@ document.getElementById("tbResult").innerText =
       bottomMargin: bottomMargin,
       date: new Date().toLocaleString()
   });
+  grayWarp.delete();
 
-  src.delete(); gray.delete(); edges.delete();
+  edgeImage.delete();
+
+  lines.delete();
+
+  warped.delete();
+
+  src.delete(); 
+
+  gray.delete(); 
+  
+  edges.delete();
 }
 </script>
 
